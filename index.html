@@ -1,0 +1,2358 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PCMAT — La Sèrie de Fibonacci Interactiva</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- jsPDF per a la generació directa d'informes PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Tipografia Google Fonts: Plus Jakarta Sans & Nunito -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            display: ['"Nunito"', 'sans-serif'],
+          },
+          colors: {
+            pcmat: {
+              banner: '#2E6E36',
+              dark: '#225428',
+              asterisk: '#387D3F',
+              greenBg: '#DCEAD9',
+              greenBorder: '#539458',
+              beigeBg: '#F3F0EA',
+              beigeBorder: '#8C8881',
+              surface: '#F7FAF6',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Estils personalitzats per mantenir la fidelitat visual amb el model PCMAT */
+    body {
+      background-color: #F6F9F5;
+      color: #1E293B;
+      overflow-x: hidden;
+    }
+
+    /* Tipografia PCMAT del banner amb contorn i relleu fidel a la imatge */
+    .pcmat-logo-text {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: #FFFFFF;
+      text-shadow:
+        -2px 0 0 #38BDF8,
+        2px 0 0 #FACC15,
+        0 3px 6px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Caselles PCMAT fidels al model */
+    .pcmat-tile {
+      border-radius: 12px;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .pcmat-tile-green {
+      background-color: #DCEAD9;
+      border: 2.5px solid #539458;
+      color: #0F172A;
+    }
+
+    .pcmat-tile-beige {
+      background-color: #F3F0EA;
+      border: 2.5px solid #8C8881;
+      color: #0F172A;
+    }
+
+    .pcmat-tile-blue {
+      background-color: #E0F2FE;
+      border: 2.5px solid #0284C7;
+      color: #0F172A;
+    }
+
+    .pcmat-tile-amber {
+      background-color: #FEF3C7;
+      border: 2.5px solid #D97706;
+      color: #0F172A;
+    }
+
+    /* Estats d'interacció de les caselles */
+    .tile-input:focus {
+      outline: none;
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 0 0 4px rgba(46, 110, 54, 0.28);
+      border-color: #2E6E36;
+      background-color: #FFFFFF;
+    }
+
+    .tile-input::placeholder {
+      color: #1E293B;
+      opacity: 0.85;
+      font-weight: 900;
+    }
+
+    .tile-solved {
+      background-color: #BBF7D0 !important;
+      border-color: #16A34A !important;
+      color: #14532D !important;
+      box-shadow: 0 2px 6px rgba(22, 163, 74, 0.18);
+    }
+
+    .tile-error {
+      background-color: #FEE2E2 !important;
+      border-color: #DC2626 !important;
+      color: #991B1B !important;
+      animation: tileShake 0.38s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    .tile-highlight-parent {
+      background-color: #FEF08A !important;
+      border-color: #CA8A04 !important;
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 6px 14px rgba(202, 138, 4, 0.28);
+      z-index: 10;
+    }
+
+    .tile-highlight-target {
+      background-color: #BBF7D0 !important;
+      border-color: #15803D !important;
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 6px 14px rgba(21, 128, 61, 0.28);
+      z-index: 10;
+    }
+
+    @keyframes tileShake {
+      10%, 90% { transform: translateX(-2px); }
+      20%, 80% { transform: translateX(3px); }
+      30%, 50%, 70% { transform: translateX(-4px); }
+      40%, 60% { transform: translateX(4px); }
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.85); opacity: 0; }
+      70% { transform: scale(1.04); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .animate-pop-in {
+      animation: popIn 0.3s ease-out forwards;
+    }
+
+    /* Animació per al traç de l'Espiral Daurada */
+    .spiral-arc-path {
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 1000;
+      animation: drawSpiral 1.1s ease-out forwards;
+    }
+
+    @keyframes drawSpiral {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    /* Amagar fletxes natives dels inputs numèrics */
+    input[type="text"]::-webkit-inner-spin-button,
+    input[type="text"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-200 selection:text-emerald-950">
+
+  <!-- Canvas de confeti per a celebracions -->
+  <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+  <!-- Contenidor de notificacions Toast / Medalles -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full px-4 sm:px-0 pointer-events-none"></div>
+
+  <!-- MODAL D'IDENTIFICACIÓ DE L'ALUMNAT -->
+  <div id="student-modal" class="fixed inset-0 z-40 bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl shadow-2xl border-2 border-emerald-700/20 max-w-lg w-full overflow-hidden animate-pop-in">
+      <!-- Mini capçalera verda PCMAT -->
+      <div class="bg-[#2E6E36] px-6 py-5 text-white flex items-center justify-between">
+        <div>
+          <span class="text-xs uppercase tracking-widest font-bold text-emerald-200 block">Identificació de l'Alumnat</span>
+          <h2 class="text-2xl font-extrabold font-display mt-0.5">Benvingut/da a PCMAT!</h2>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center text-2xl">
+          🌿
+        </div>
+      </div>
+
+      <form id="student-form" class="p-6 space-y-4">
+        <p class="text-sm text-slate-600 leading-relaxed">
+          Introdueix les teves dades per guardar els teus punts d'experiència (XP), desbloquejar medalles i generar el teu informe de progrés en PDF.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="input-nom" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Nom *</label>
+            <input id="input-nom" type="text" required placeholder="Ex: Laia"
+              class="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-[#2E6E36] focus:outline-none font-semibold text-slate-800 transition" />
+          </div>
+          <div>
+            <label for="input-cognoms" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Cognoms *</label>
+            <input id="input-cognoms" type="text" required placeholder="Ex: Puig i Soler"
+              class="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-[#2E6E36] focus:outline-none font-semibold text-slate-800 transition" />
+          </div>
+        </div>
+
+        <div>
+          <label for="input-curs" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Curs / Grup *</label>
+          <select id="input-curs" required
+            class="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-[#2E6E36] focus:outline-none font-semibold text-slate-800 bg-white transition">
+            <option value="5è de Primària">5è de Primària</option>
+            <option value="6è de Primària" selected>6è de Primària</option>
+            <option value="1r d'ESO A">1r d'ESO A</option>
+            <option value="1r d'ESO B">1r d'ESO B</option>
+            <option value="2n d'ESO A">2n d'ESO A</option>
+            <option value="2n d'ESO B">2n d'ESO B</option>
+            <option value="Aula d'Acollida / Suport">Aula d'Acollida / Suport</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Tria el teu Avatar Matemàtic</label>
+          <div id="avatar-selector" class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            <!-- S'omple dinàmicament per JS -->
+          </div>
+        </div>
+
+        <div class="pt-2 flex flex-col sm:flex-row gap-2.5 justify-end">
+          <button type="button" id="btn-cancel-modal" class="hidden px-4 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition">
+            Cancel·lar
+          </button>
+          <button type="submit" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#2E6E36] hover:bg-[#225428] text-white font-extrabold text-sm shadow-lg shadow-emerald-900/20 transition flex items-center justify-center gap-2">
+            <span>Començar l'Aventura</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE CONFIRMACIÓ PER REINICIAR PROGRÉS (Sense window.confirm) -->
+  <div id="reset-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 animate-pop-in border border-slate-200">
+      <div class="flex items-center gap-3 text-amber-600 mb-3">
+        <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center font-bold text-xl">!</div>
+        <h3 class="text-lg font-extrabold text-slate-900">Reiniciar el progrés?</h3>
+      </div>
+      <p class="text-sm text-slate-600 mb-5 leading-relaxed">
+        Aquesta acció esborrarà totes les respostes, punts d'experiència (XP) i medalles de l'alumne actual per començar des de zero.
+      </p>
+      <div class="flex justify-end gap-2.5">
+        <button id="btn-reset-cancel" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50">Cancel·lar</button>
+        <button id="btn-reset-confirm" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm shadow">Sí, reinicia</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE MEDALLES I ASSOLIMENTS -->
+  <div id="medals-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden animate-pop-in border border-slate-200">
+      <div class="bg-[#2E6E36] px-6 py-4 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">🏆</span>
+          <h3 class="text-xl font-extrabold font-display">Medalles i Assoliments PCMAT</h3>
+        </div>
+        <button id="btn-close-medals" class="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="medals-grid" class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[70vh] overflow-y-auto">
+        <!-- Renderitzat dinàmicament -->
+      </div>
+    </div>
+  </div>
+
+  <!-- CAPÇALERA PRINCIPAL -->
+  <header class="w-full max-w-6xl mx-auto px-3 sm:px-6 pt-3 sm:pt-5">
+    <!-- BANNER CORPORATIU PCMAT (Fidel a la imatge 1) -->
+    <div class="bg-[#2E6E36] rounded-[24px] sm:rounded-[28px] px-5 sm:px-10 py-3.5 sm:py-4 shadow-lg shadow-emerald-950/15 flex flex-col sm:flex-row items-center justify-between gap-3 relative overflow-hidden">
+      <!-- Textura subtil de fons -->
+      <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 16px 16px;"></div>
+
+      <!-- Logotip PCMAT a l'esquerra -->
+      <div class="flex flex-col items-center sm:items-start z-10">
+        <h1 class="pcmat-logo-text text-4xl sm:text-5xl md:text-6xl select-none leading-none">
+          PCMAT
+        </h1>
+        <p class="text-emerald-100 text-xs sm:text-sm font-semibold mt-1 tracking-wide">
+          Pensament Computacional i Matemàtiques · Sèrie de Fibonacci
+        </p>
+      </div>
+
+      <!-- Il·lustració SVG detallada de la mestra i els 3 alumnes al voltant de la taula (Fidel a la imatge 1) -->
+      <div class="z-10 flex-shrink-0">
+        <svg viewBox="0 0 320 135" class="w-56 sm:w-64 md:w-72 h-auto drop-shadow-md" aria-label="Il·lustració PCMAT: mestra i tres alumnes treballant amb materials matemàtics">
+          <!-- Mestra (darrere centre-dreta, cabells taronja recollits, jaqueta blava) -->
+          <g id="teacher">
+            <!-- Cua de cavall -->
+            <path d="M214 22 C226 16, 234 28, 226 42 C221 36, 217 30, 214 22 Z" fill="#D96B27"/>
+            <!-- Cabells principals -->
+            <path d="M182 34 C182 14, 214 12, 216 34 C216 44, 210 50, 199 50 C188 50, 182 44, 182 34 Z" fill="#E0732B"/>
+            <!-- Cos / Jaqueta blava i samarreta taronja -->
+            <path d="M174 88 C176 62, 188 55, 200 55 C212 55, 224 62, 226 88 Z" fill="#2B5B78"/>
+            <path d="M193 56 L207 56 L204 86 L196 86 Z" fill="#F28530"/>
+            <!-- Cara -->
+            <circle cx="198" cy="36" r="13" fill="#FCD5B5"/>
+            <!-- Serrell -->
+            <path d="M185 33 C188 22, 208 22, 211 33 C205 28, 192 28, 185 33 Z" fill="#E0732B"/>
+            <!-- Ulls i somriure -->
+            <circle cx="193" cy="36" r="1.6" fill="#1E293B"/>
+            <circle cx="203" cy="36" r="1.6" fill="#1E293B"/>
+            <path d="M194 42 Q198 46 202 42" stroke="#9A3412" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            <!-- Braç assenyalant la taula -->
+            <path d="M182 65 Q172 78 178 90" stroke="#2B5B78" stroke-width="9" stroke-linecap="round" fill="none"/>
+            <circle cx="178" cy="91" r="4" fill="#FCD5B5"/>
+          </g>
+
+          <!-- Alumne 1 (esquerra, pell fosca, samarreta taronja) -->
+          <g id="student-left">
+            <!-- Cabells -->
+            <circle cx="105" cy="54" r="15" fill="#1E1B18"/>
+            <circle cx="91" cy="58" r="6" fill="#1E1B18"/>
+            <!-- Cos taronja -->
+            <path d="M84 102 C85 78, 95 72, 107 72 C119 72, 128 78, 130 102 Z" fill="#F97316"/>
+            <!-- Cara -->
+            <circle cx="108" cy="57" r="12" fill="#6B3E26"/>
+            <circle cx="111" cy="56" r="1.5" fill="#111827"/>
+            <path d="M108 62 Q112 65 115 62" stroke="#FDE68A" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+            <!-- Braç sobre la taula -->
+            <path d="M96 82 Q108 92 126 94" stroke="#F97316" stroke-width="9" stroke-linecap="round" fill="none"/>
+            <circle cx="128" cy="94" r="4" fill="#6B3E26"/>
+          </g>
+
+          <!-- Alumne 2 (centre, ulleres, samarreta fosca) -->
+          <g id="student-center">
+            <path d="M144 56 C144 40, 174 40, 174 58 L176 74 L142 74 Z" fill="#1F2937"/>
+            <path d="M138 102 C140 80, 148 74, 159 74 C170 74, 178 80, 180 102 Z" fill="#1F2937"/>
+            <circle cx="159" cy="59" r="11.5" fill="#7C4A2D"/>
+            <!-- Ulleres -->
+            <circle cx="155" cy="59" r="3.8" stroke="#111827" stroke-width="1.3" fill="none"/>
+            <circle cx="164" cy="59" r="3.8" stroke="#111827" stroke-width="1.3" fill="none"/>
+            <line x1="158.8" y1="59" x2="160.2" y2="59" stroke="#111827" stroke-width="1.3"/>
+            <circle cx="155" cy="59" r="1.2" fill="#111827"/>
+            <circle cx="164" cy="59" r="1.2" fill="#111827"/>
+            <path d="M156 65 Q159 68 162 65" stroke="#FDE68A" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+          </g>
+
+          <!-- Alumne 3 (dreta, samarreta verd aigua / menta) -->
+          <g id="student-right">
+            <path d="M225 52 C225 35, 257 35, 257 54 C257 62, 252 67, 241 67 C230 67, 225 62, 225 52 Z" fill="#1E293B"/>
+            <path d="M218 102 C220 77, 230 70, 242 70 C254 70, 263 77, 265 102 Z" fill="#76C7B7"/>
+            <circle cx="239" cy="55" r="12" fill="#FDE2C4"/>
+            <circle cx="234" cy="54" r="1.5" fill="#1E293B"/>
+            <circle cx="242" cy="54" r="1.5" fill="#1E293B"/>
+            <path d="M235 60 Q238 64 242 60" stroke="#9A3412" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+            <path d="M250 82 Q238 92 222 94" stroke="#76C7B7" stroke-width="9" stroke-linecap="round" fill="none"/>
+            <circle cx="220" cy="94" r="4" fill="#FDE2C4"/>
+          </g>
+
+          <!-- Potes de la taula -->
+          <rect x="92" y="106" width="6" height="24" rx="2" fill="#94A3B8"/>
+          <rect x="254" y="106" width="6" height="24" rx="2" fill="#94A3B8"/>
+
+          <!-- Taula de fusta -->
+          <polygon points="78,94 272,94 282,108 68,108" fill="#FCD385" stroke="#D99B38" stroke-width="1.5"/>
+          <rect x="68" y="106" width="214" height="6" rx="2" fill="#E5A94C"/>
+
+          <!-- Materials matemàtics sobre la taula (fulls, piràmide taronja, cub blau, fitxes) -->
+          <polygon points="116,96 154,96 160,104 110,104" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+          <line x1="120" y1="99" x2="148" y2="99" stroke="#F97316" stroke-width="2"/>
+          <!-- Robot / targeta programació -->
+          <rect x="166" y="88" width="24" height="14" rx="3" fill="#F8FAFC" stroke="#475569" stroke-width="1.2"/>
+          <circle cx="171" cy="102" r="3" fill="#1E293B"/>
+          <circle cx="185" cy="102" r="3" fill="#1E293B"/>
+          <!-- Poliedre / Piràmide taronja -->
+          <polygon points="204,91 196,104 212,104" fill="#F97316"/>
+          <polygon points="204,91 212,104 216,99" fill="#EA580C"/>
+          <!-- Cub blau -->
+          <rect x="186" y="96" width="8" height="8" rx="1.5" fill="#38BDF8"/>
+          <!-- Tauleta / quadern fosc -->
+          <polygon points="218,95 244,95 248,103 214,103" fill="#334155"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- BARRA D'ESTAT DE L'ALUMNE, XP I ACCIONS DOCENTS -->
+    <div class="mt-3 bg-white rounded-2xl border border-slate-200/90 shadow-sm px-4 py-3 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+      <!-- Perfil alumne + Rang -->
+      <div class="flex items-center justify-between sm:justify-start gap-3">
+        <button id="btn-edit-student" title="Canviar d'alumne o editar perfil" class="flex items-center gap-3 text-left group hover:bg-slate-50 p-1.5 -m-1.5 rounded-xl transition">
+          <div id="hud-avatar" class="w-11 h-11 rounded-2xl bg-emerald-100 border-2 border-[#387D3F] flex items-center justify-center text-2xl shadow-sm group-hover:scale-105 transition">
+            🦉
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span id="hud-student-name" class="font-extrabold text-slate-900 text-sm sm:text-base leading-tight">Alumne/a</span>
+              <span class="text-xs text-slate-400 group-hover:text-[#2E6E36] transition">✎</span>
+            </div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span id="hud-student-course" class="text-xs font-semibold text-slate-500">6è de Primària</span>
+              <span class="text-slate-300">•</span>
+              <span id="hud-rank-badge" class="text-xs font-extrabold text-[#2E6E36] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                1. Aprenent de Patrons
+              </span>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <!-- Barra d'Experiència (XP) i Ratxa -->
+      <div class="flex-1 max-w-md w-full">
+        <div class="flex items-center justify-between text-xs font-bold mb-1">
+          <span class="text-slate-600 flex items-center gap-1">
+            <span class="text-amber-500">★</span> Experiència: <strong id="hud-xp" class="text-slate-900">0 XP</strong>
+          </span>
+          <span id="hud-next-rank-text" class="text-slate-400">Següent rang: 150 XP</span>
+        </div>
+        <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/80 p-0.5">
+          <div id="hud-xp-bar" class="h-full bg-gradient-to-r from-[#387D3F] via-emerald-500 to-amber-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Indicadors gamificats i botons d'acció (Medalles, So, PDF) -->
+      <div class="flex flex-wrap items-center justify-between sm:justify-end gap-2">
+        <!-- Ratxa -->
+        <div title="Ratxa d'encerts consecutius" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-extrabold text-xs">
+          <span>🔥</span>
+          <span>Ratxa: <span id="hud-streak">0</span></span>
+        </div>
+
+        <!-- Botó Medalles -->
+        <button id="btn-open-medals" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 font-extrabold text-xs transition">
+          <span>🏆</span>
+          <span>Medalles (<span id="hud-medals-count">0/6</span>)</span>
+        </button>
+
+        <!-- Botó So -->
+        <button id="btn-toggle-sound" title="Activa o silencia els efectes de so" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition" aria-label="So">
+          <span id="sound-icon">🔊</span>
+        </button>
+
+        <!-- Botó Reiniciar -->
+        <button id="btn-open-reset" title="Reiniciar el progrés de l'alumne" class="p-2 rounded-xl bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-600 transition" aria-label="Reiniciar">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        </button>
+
+        <!-- Botó Descàrrega PDF per al Docent -->
+        <button id="btn-download-pdf" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2E6E36] hover:bg-[#225428] active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-900/15 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span>Descarregar Informe PDF</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- NAVEGACIÓ DELS 5 NIVELLS PROGRESSIUS -->
+    <nav aria-label="Nivells de dificultat" class="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <!-- Es generen dinàmicament per JS -->
+      <div id="levels-nav" class="contents"></div>
+    </nav>
+  </header>
+
+  <!-- CONTINGUT PRINCIPAL DELS EXERCICIS -->
+  <main class="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 py-5">
+    <!-- Barra d'eines del nivell actiu (Títol, Descripció, Botó Pista Visual, Progrés del Nivell) -->
+    <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <span id="level-badge" class="px-2.5 py-0.5 rounded-lg bg-[#DCEAD9] text-[#225428] border border-[#539458] text-xs font-extrabold uppercase tracking-wider">
+            Nivell 1
+          </span>
+          <span id="level-status-pill" class="text-xs font-bold text-slate-500">En curs</span>
+        </div>
+        <h2 id="level-title" class="text-xl sm:text-2xl font-extrabold font-display text-slate-900 mt-1">
+          El Model PCMAT (Iniciació)
+        </h2>
+        <p id="level-subtitle" class="text-sm text-slate-600 mt-0.5">
+          Observa com cada nombre s'obté sumant els dos anteriors i completa les dues seqüències.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Botó de Pista Visual -->
+        <button id="btn-hint" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 border-2 border-amber-400 text-amber-950 font-extrabold text-xs sm:text-sm transition shadow-sm">
+          <span>💡</span>
+          <span>Demana pista visual</span>
+        </button>
+
+        <!-- Botó Comprova tot el nivell -->
+        <button id="btn-check-level" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border-2 border-[#539458] text-[#225428] font-extrabold text-xs sm:text-sm transition">
+          <span>✓</span>
+          <span>Comprova respostes</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Banner de Pista Visual Activa (es mostra quan l'alumne demana una pista) -->
+    <div id="hint-banner" class="hidden mb-5 bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-start sm:items-center justify-between gap-3 animate-pop-in">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-200 text-amber-900 flex items-center justify-center text-xl flex-shrink-0">💡</div>
+        <div>
+          <p class="text-xs font-extrabold uppercase tracking-wider text-amber-800">Pista Visual PCMAT</p>
+          <p id="hint-text" class="text-sm sm:text-base font-bold text-slate-800 mt-0.5"></p>
+        </div>
+      </div>
+      <button id="btn-close-hint" class="text-amber-700 hover:text-amber-950 font-bold text-sm px-2 py-1">✕</button>
+    </div>
+
+    <!-- CONTENIDOR DINÀMIC DE L'ACTIVITAT DEL NIVELL -->
+    <div id="activity-container" class="space-y-6">
+      <!-- Renderitzat dinàmicament segons el nivell seleccionat -->
+    </div>
+
+    <!-- Barra inferior de navegació entre nivells -->
+    <div class="mt-8 pt-4 border-t border-slate-200 flex items-center justify-between">
+      <button id="btn-prev-level" class="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold text-sm disabled:opacity-40 disabled:pointer-events-none transition flex items-center gap-2">
+        <span>←</span>
+        <span>Nivell anterior</span>
+      </button>
+
+      <div id="bottom-level-indicator" class="text-xs font-bold text-slate-500">
+        Nivell 1 de 5
+      </div>
+
+      <button id="btn-next-level" class="px-5 py-2.5 rounded-xl bg-[#2E6E36] hover:bg-[#225428] text-white font-extrabold text-sm shadow-md shadow-emerald-900/15 disabled:opacity-40 disabled:pointer-events-none transition flex items-center gap-2">
+        <span>Següent nivell</span>
+        <span>→</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- PEU DE PÀGINA -->
+  <footer class="w-full max-w-6xl mx-auto px-4 py-6 text-center text-xs text-slate-500">
+    <p><strong>PCMAT</strong> · Recurs educatiu interactiu per al treball de patrons numèrics, pensament additiu i la Sèrie de Fibonacci.</p>
+  </footer>
+
+  <script>
+    /*************************************************************************
+     * APLICACIÓ EDUCATIVA INTERACTIVA PCMAT — LA SÈRIE DE FIBONACCI
+     * Arquitectura completa en un sol fitxer:
+     * 1. Estat global i persistència a localStorage
+     * 2. Definició pedagògica dels 5 nivells progressius
+     * 3. Motor d'àudio sintetitzat (Web Audio API, sense URLs externes)
+     * 4. Renderitzadors interactius (Observa, Caselles PCMAT, Intrusos, Espiral SVG, Nombre d'Or)
+     * 5. Gamificació (XP, Rangs, Ratxes, Medalles, Pistes Visuals, Confeti)
+     * 6. Generador d'Informe PDF per al docent amb jsPDF
+     *************************************************************************/
+
+    const STORAGE_KEY = 'pcmat_fibonacci_app_v1';
+
+    // Avatars disponibles per als alumnes
+    const AVATARS = [
+      { id: 'owl', emoji: '🦉', label: 'Mussol Savi' },
+      { id: 'fox', emoji: '🦊', label: 'Guineu Àgil' },
+      { id: 'robot', emoji: '🤖', label: 'Robot Lògic' },
+      { id: 'rocket', emoji: '🚀', label: 'Coet Espiral' },
+      { id: 'turtle', emoji: '🐢', label: 'Tortuga Daurada' },
+      { id: 'compass', emoji: '🧭', label: 'Brúixola PCMAT' }
+    ];
+
+    // Rangs evolutius segons Punts d'Experiència (XP)
+    const RANKS = [
+      { level: 1, name: '1. Aprenent de Patrons', minXp: 0 },
+      { level: 2, name: '2. Explorador/a de Seqüències', minXp: 150 },
+      { level: 3, name: '3. Calculador/a Àgil', minXp: 350 },
+      { level: 4, name: '4. Mestre/a de Fibonacci', minXp: 600 },
+      { level: 5, name: '5. Llegenda PCMAT', minXp: 900 }
+    ];
+
+    // Medalles desbloquejables
+    const MEDALS = [
+      {
+        id: 'primer_pas',
+        icon: '🌱',
+        title: 'Primer Pas PCMAT',
+        desc: 'Completa correctament tot el Nivell 1 (El Model PCMAT).'
+      },
+      {
+        id: 'precisio_total',
+        icon: '🎯',
+        title: 'Precisió Total',
+        desc: 'Supera qualsevol nivell sencer sense cometre cap error.'
+      },
+      {
+        id: 'mestre_invers',
+        icon: '🔄',
+        title: 'Mestre Invers',
+        desc: 'Resol les seqüències amb caselles ocultes del Nivell 3.'
+      },
+      {
+        id: 'detector_intrusos',
+        icon: '🕵️',
+        title: 'Detector d’Intrusos',
+        desc: 'Troba i corregeix tots els nombres intrusos del Nivell 4.'
+      },
+      {
+        id: 'arquitecte_espiral',
+        icon: '🐚',
+        title: 'Arquitecte de l’Espiral',
+        desc: 'Completa totes les mides i dibuixa l’Espiral Daurada.'
+      },
+      {
+        id: 'llegenda_or',
+        icon: '✨',
+        title: 'Descobridor del Nombre d’Or',
+        desc: 'Completa el Nivell 5 i descobreix el valor de φ (1,618).'
+      }
+    ];
+
+    // Definició dels 5 nivells progressius
+    const LEVELS_DATA = [
+      {
+        id: 1,
+        shortTitle: '1. Model PCMAT',
+        title: 'El Model PCMAT (Iniciació)',
+        subtitle: 'Observa l’exemple inicial i completa les dues files sumant sempre els dos nombres anteriors.',
+        exercises: [
+          {
+            id: 'n1_r1',
+            type: 'sequence',
+            label: 'Fila 1 · Seqüència Verda (2, 5...)',
+            theme: 'green',
+            values: [2, 5, 7, 12, 19, 31, 50, 81, 131],
+            givenIndices: [0, 1]
+          },
+          {
+            id: 'n1_r2',
+            type: 'sequence',
+            label: 'Fila 2 · Seqüència de Fibonacci Clàssica (1, 1...)',
+            theme: 'beige',
+            values: [1, 1, 2, 3, 5, 8, 13, 21, 34],
+            givenIndices: [0, 1]
+          }
+        ]
+      },
+      {
+        id: 2,
+        shortTitle: '2. Seqüències Germanes',
+        title: 'Seqüències Germanes (Lucas i Variants)',
+        subtitle: 'La regla additiva funciona amb qualsevol parella inicial! Descobreix els nombres de Lucas i altres variants.',
+        exercises: [
+          {
+            id: 'n2_r1',
+            type: 'sequence',
+            label: 'Els Nombres de Lucas (2, 1...)',
+            theme: 'green',
+            values: [2, 1, 3, 4, 7, 11, 18, 29, 47],
+            givenIndices: [0, 1]
+          },
+          {
+            id: 'n2_r2',
+            type: 'sequence',
+            label: 'Variant del 3 i el 4 (3, 4...)',
+            theme: 'beige',
+            values: [3, 4, 7, 11, 18, 29, 47, 76],
+            givenIndices: [0, 1]
+          },
+          {
+            id: 'n2_r3',
+            type: 'sequence',
+            label: 'Seqüència de Parells (4, 6...)',
+            theme: 'blue',
+            values: [4, 6, 10, 16, 26, 42, 68, 110],
+            givenIndices: [0, 1]
+          }
+        ]
+      },
+      {
+        id: 3,
+        shortTitle: '3. Caselles Ocultes',
+        title: 'Caselles Ocultes (Pensament Invers)',
+        subtitle: 'Falten nombres al mig i al principi! Fes servir la resta (c − b = a) per deduir els valors ocults.',
+        exercises: [
+          {
+            id: 'n3_r1',
+            type: 'sequence',
+            label: 'Repte Invers 1 · Deducció cap enrere i endavant',
+            theme: 'green',
+            values: [3, 4, 7, 11, 18, 29, 47],
+            givenIndices: [1, 3, 4, 6] // Donats: 4, 11, 18, 47
+          },
+          {
+            id: 'n3_r2',
+            type: 'sequence',
+            label: 'Repte Invers 2 · Descobreix l’origen ocult',
+            theme: 'beige',
+            values: [2, 3, 5, 8, 13, 21, 34],
+            givenIndices: [2, 3, 4, 5] // Donats: 5, 8, 13, 21
+          },
+          {
+            id: 'n3_r3',
+            type: 'sequence',
+            label: 'Repte Invers 3 · El pont numèric',
+            theme: 'amber',
+            values: [6, 10, 16, 26, 42, 68, 110],
+            givenIndices: [0, 2, 4, 5] // Donats: 6, 16, 42, 68
+          }
+        ]
+      },
+      {
+        id: 4,
+        shortTitle: '4. Espiral i Intrús',
+        title: 'L’Espiral Daurada i l’Intrús',
+        subtitle: 'Part A: Detecta i corregeix el nombre intrús. Part B: Construeix els quadrats de l’Espiral de Fibonacci.',
+        exercises: [
+          {
+            id: 'n4_int1',
+            type: 'intruder',
+            label: 'Detector d’Intrusos 1',
+            theme: 'green',
+            shownValues: [1, 1, 2, 3, 6, 8, 13],
+            correctValues: [1, 1, 2, 3, 5, 8, 13],
+            intruderIndex: 4
+          },
+          {
+            id: 'n4_int2',
+            type: 'intruder',
+            label: 'Detector d’Intrusos 2',
+            theme: 'beige',
+            shownValues: [2, 3, 5, 8, 13, 20, 34],
+            correctValues: [2, 3, 5, 8, 13, 21, 34],
+            intruderIndex: 5
+          },
+          {
+            id: 'n4_int3',
+            type: 'intruder',
+            label: 'Detector d’Intrusos 3',
+            theme: 'blue',
+            shownValues: [3, 5, 8, 14, 21, 34, 55],
+            correctValues: [3, 5, 8, 13, 21, 34, 55],
+            intruderIndex: 3
+          },
+          {
+            id: 'n4_spiral',
+            type: 'spiral',
+            label: 'L’Espiral de Fibonacci (Costats dels quadrats)',
+            theme: 'amber',
+            values: [1, 1, 2, 3, 5, 8, 13],
+            givenIndices: [0, 1]
+          }
+        ]
+      },
+      {
+        id: 5,
+        shortTitle: '5. Mestre de Patrons',
+        title: 'Mestre/a de Patrons i el Nombre d’Or (φ)',
+        subtitle: 'Supera seqüències amb nombres negatius i decimals, i descobreix la proporció àuria de la natura.',
+        exercises: [
+          {
+            id: 'n5_neg',
+            type: 'sequence',
+            label: 'Repte Avançat 1 · Nombres Enters Negatius (-2, 5...)',
+            theme: 'green',
+            values: [-2, 5, 3, 8, 11, 19, 30],
+            givenIndices: [0, 1]
+          },
+          {
+            id: 'n5_dec',
+            type: 'sequence',
+            label: 'Repte Avançat 2 · Nombres Decimals (0,5 i 1,5...)',
+            theme: 'beige',
+            values: [0.5, 1.5, 2, 3.5, 5.5, 9, 14.5],
+            givenIndices: [0, 1]
+          },
+          {
+            id: 'n5_phi',
+            type: 'golden_ratio',
+            label: 'Repte Final · El Secret del Nombre d’Or (φ)',
+            theme: 'amber',
+            targetRatio: 1.618
+          }
+        ]
+      }
+    ];
+
+    // Estat per defecte de l'aplicació
+    function createDefaultState() {
+      return {
+        student: {
+          nom: '',
+          cognoms: '',
+          curs: '6è de Primària',
+          avatar: 'owl',
+          registered: false
+        },
+        activeLevel: 1,
+        xp: 0,
+        streak: 0,
+        bestStreak: 0,
+        hintsUsed: 0,
+        soundEnabled: true,
+        medals: [],
+        // Emmagatzema el progrés detallat de cada exercici per a l'avaluació i el PDF
+        progress: {}
+      };
+    }
+
+    let appState = loadState();
+    let activeObserveIndex = 2; // Índex seleccionat al bloc "Observa:" (comença al 4)
+    let activeInputMeta = null; // Guarda quina casella té el focus per donar pistes precises
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return createDefaultState();
+        const parsed = JSON.parse(raw);
+        return { ...createDefaultState(), ...parsed };
+      } catch (e) {
+        console.warn('No s’ha pogut carregar l’estat des de localStorage:', e);
+        return createDefaultState();
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (e) {
+        console.warn('No s’ha pogut desar l’estat:', e);
+      }
+    }
+
+    // Assegura que existeix l'objecte de seguiment per a cada exercici
+    function getExerciseRecord(exId) {
+      if (!appState.progress[exId]) {
+        appState.progress[exId] = {
+          answers: {},       // index -> valor introduït
+          solvedIndices: [], // índexs resolts correctament
+          intruderFound: false,
+          phiSolved: false,
+          errors: 0,
+          xpEarned: 0,
+          completed: false
+        };
+      }
+      return appState.progress[exId];
+    }
+
+    /*************************************************************************
+     * SINTETITZADOR D'ÀUDIO (Web Audio API - Sense dependències externes)
+     *************************************************************************/
+    const SoundFX = {
+      ctx: null,
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+      },
+      playTone(freq, type = 'sine', duration = 0.16, delay = 0, vol = 0.12) {
+        if (!appState.soundEnabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+          gain.gain.setValueAtTime(vol, this.ctx.currentTime + delay);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(this.ctx.currentTime + delay);
+          osc.stop(this.ctx.currentTime + delay + duration);
+        } catch (e) {}
+      },
+      success() {
+        this.playTone(523.25, 'triangle', 0.14, 0, 0.14);    // Do5
+        this.playTone(659.25, 'triangle', 0.18, 0.08, 0.14); // Mi5
+      },
+      error() {
+        this.playTone(220, 'sawtooth', 0.18, 0, 0.09);
+        this.playTone(185, 'sawtooth', 0.22, 0.1, 0.09);
+      },
+      levelUp() {
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        notes.forEach((n, i) => this.playTone(n, 'triangle', 0.22, i * 0.09, 0.15));
+      },
+      hint() {
+        this.playTone(440, 'sine', 0.15, 0, 0.1);
+        this.playTone(587.33, 'sine', 0.2, 0.08, 0.1);
+      }
+    };
+
+    /*************************************************************************
+     * SISTEMA DE CONFETI I NOTIFICACIONS TOAST
+     *************************************************************************/
+    function triggerConfetti() {
+      const canvas = document.getElementById('confetti-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const colors = ['#2E6E36', '#539458', '#FACC15', '#38BDF8', '#F97316', '#EC4899'];
+      const particles = Array.from({ length: 85 }, () => ({
+        x: Math.random() * canvas.width,
+        y: -20 - Math.random() * 120,
+        size: 6 + Math.random() * 7,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vx: -2.5 + Math.random() * 5,
+        vy: 3 + Math.random() * 4.5,
+        rot: Math.random() * 360,
+        vRot: -6 + Math.random() * 12
+      }));
+
+      let frames = 0;
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.rot += p.vRot;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rot * Math.PI) / 180);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        });
+        frames++;
+        if (frames < 130) {
+          requestAnimationFrame(draw);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    function showToast(title, message, icon = '🌟', variant = 'green') {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      const colors = {
+        green: 'bg-white border-l-4 border-[#2E6E36] text-slate-800',
+        gold: 'bg-amber-50 border-l-4 border-amber-500 text-amber-950',
+        red: 'bg-red-50 border-l-4 border-red-500 text-red-950'
+      };
+      el.className = `${colors[variant] || colors.green} pointer-events-auto rounded-2xl shadow-xl border border-slate-200/80 p-3.5 flex items-start gap-3 animate-pop-in`;
+      el.innerHTML = `
+        <div class="text-2xl leading-none mt-0.5">${icon}</div>
+        <div class="flex-1">
+          <p class="font-extrabold text-sm">${title}</p>
+          <p class="text-xs opacity-90 mt-0.5 leading-snug">${message}</p>
+        </div>
+      `;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(8px)';
+        el.style.transition = 'all 0.25s ease';
+        setTimeout(() => el.remove(), 260);
+      }, 3600);
+    }
+
+    /*************************************************************************
+     * GAMIFICACIÓ: XP, RANGS I MEDALLES
+     *************************************************************************/
+    function getCurrentRank(xp) {
+      let current = RANKS[0];
+      let next = RANKS[1] || null;
+      for (let i = 0; i < RANKS.length; i++) {
+        if (xp >= RANKS[i].minXp) {
+          current = RANKS[i];
+          next = RANKS[i + 1] || null;
+        }
+      }
+      return { current, next };
+    }
+
+    function addXp(amount, exId = null) {
+      const prevRank = getCurrentRank(appState.xp).current.level;
+      appState.xp = Math.max(0, appState.xp + amount);
+      if (exId) {
+        const rec = getExerciseRecord(exId);
+        rec.xpEarned = Math.max(0, rec.xpEarned + amount);
+      }
+      const newRank = getCurrentRank(appState.xp).current;
+      if (newRank.level > prevRank) {
+        showToast('Nou Rang Assolit!', `Has pujat a ${newRank.name}`, '🎖️', 'gold');
+        triggerConfetti();
+      }
+      updateHud();
+      saveState();
+    }
+
+    function unlockMedal(medalId) {
+      if (appState.medals.includes(medalId)) return;
+      const medal = MEDALS.find(m => m.id === medalId);
+      if (!medal) return;
+      appState.medals.push(medalId);
+      saveState();
+      updateHud();
+      SoundFX.levelUp();
+      triggerConfetti();
+      showToast(`Medalla Desbloquejada: ${medal.title}`, medal.desc, medal.icon, 'gold');
+    }
+
+    function evaluateLevelCompletionAndMedals(levelId) {
+      const level = LEVELS_DATA.find(l => l.id === levelId);
+      if (!level) return;
+
+      const allCompleted = level.exercises.every(ex => getExerciseRecord(ex.id).completed);
+      if (allCompleted) {
+        // Comprovar medalles específiques per nivell
+        if (levelId === 1) unlockMedal('primer_pas');
+        if (levelId === 3) unlockMedal('mestre_invers');
+        if (levelId === 5) unlockMedal('llegenda_or');
+
+        // Medalla de precisió total (cap error en tot el nivell)
+        const totalErrors = level.exercises.reduce((acc, ex) => acc + getExerciseRecord(ex.id).errors, 0);
+        if (totalErrors === 0) {
+          unlockMedal('precisio_total');
+        }
+      }
+
+      // Medalles parcials del nivell 4
+      if (levelId === 4) {
+        const intrudersDone = ['n4_int1', 'n4_int2', 'n4_int3'].every(id => getExerciseRecord(id).completed);
+        if (intrudersDone) unlockMedal('detector_intrusos');
+
+        if (getExerciseRecord('n4_spiral').completed) unlockMedal('arquitecte_espiral');
+      }
+    }
+
+    /*************************************************************************
+     * UTILITATS D'ICONOGRAFIA PCMAT (Asterisc/Flor verda de 6 pètals)
+     *************************************************************************/
+    function getPcmatFlowerSvg(sizeClass = 'w-7 h-7') {
+      return `
+        <svg viewBox="0 0 40 40" class="${sizeClass} text-[#387D3F] flex-shrink-0" aria-hidden="true">
+          <g fill="currentColor">
+            <rect x="16.5" y="4" width="7" height="32" rx="3.5" />
+            <rect x="16.5" y="4" width="7" height="32" rx="3.5" transform="rotate(60 20 20)" />
+            <rect x="16.5" y="4" width="7" height="32" rx="3.5" transform="rotate(120 20 20)" />
+          </g>
+        </svg>
+      `;
+    }
+
+    function getTileThemeClass(theme) {
+      switch (theme) {
+        case 'beige': return 'pcmat-tile-beige';
+        case 'blue': return 'pcmat-tile-blue';
+        case 'amber': return 'pcmat-tile-amber';
+        default: return 'pcmat-tile-green';
+      }
+    }
+
+    function formatDisplayNumber(num) {
+      if (num === null || num === undefined || num === '') return '';
+      return String(num).replace('.', ',');
+    }
+
+    function parseUserNumber(raw) {
+      if (typeof raw !== 'string') return NaN;
+      const normalized = raw.trim().replace(',', '.');
+      if (normalized === '' || normalized === '-') return NaN;
+      return Number(normalized);
+    }
+
+    /*************************************************************************
+     * ACTUALITZACIÓ DE LA INTERFÍCIE SUPERIOR (HUD I PESTANYES DE NIVELL)
+     *************************************************************************/
+    function updateHud() {
+      const { nom, cognoms, curs, avatar } = appState.student;
+      const fullName = `${nom} ${cognoms}`.trim() || 'Alumne/a Convida’t';
+      const avatarObj = AVATARS.find(a => a.id === avatar) || AVATARS[0];
+
+      document.getElementById('hud-student-name').textContent = fullName;
+      document.getElementById('hud-student-course').textContent = curs;
+      document.getElementById('hud-avatar').textContent = avatarObj.emoji;
+      document.getElementById('hud-xp').textContent = `${appState.xp} XP`;
+      document.getElementById('hud-streak').textContent = appState.streak;
+      document.getElementById('hud-medals-count').textContent = `${appState.medals.length}/${MEDALS.length}`;
+      document.getElementById('sound-icon').textContent = appState.soundEnabled ? '🔊' : '🔇';
+
+      const { current, next } = getCurrentRank(appState.xp);
+      document.getElementById('hud-rank-badge').textContent = current.name;
+
+      if (next) {
+        const spanXp = next.minXp - current.minXp;
+        const progressXp = appState.xp - current.minXp;
+        const pct = Math.min(100, Math.max(4, Math.round((progressXp / spanXp) * 100)));
+        document.getElementById('hud-xp-bar').style.width = `${pct}%`;
+        document.getElementById('hud-next-rank-text').textContent = `Següent rang: ${next.minXp} XP`;
+      } else {
+        document.getElementById('hud-xp-bar').style.width = '100%';
+        document.getElementById('hud-next-rank-text').textContent = 'Rang Màxim Assolit!';
+      }
+
+      renderLevelsNav();
+    }
+
+    function renderLevelsNav() {
+      const nav = document.getElementById('levels-nav');
+      nav.innerHTML = LEVELS_DATA.map(lvl => {
+        const isActive = lvl.id === appState.activeLevel;
+        const completedCount = lvl.exercises.filter(ex => getExerciseRecord(ex.id).completed).length;
+        const totalCount = lvl.exercises.length;
+        const isDone = completedCount === totalCount;
+
+        let btnClass = 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700';
+        if (isActive) {
+          btnClass = 'bg-[#2E6E36] border-[#2E6E36] text-white shadow-md shadow-emerald-950/15';
+        } else if (isDone) {
+          btnClass = 'bg-emerald-50 hover:bg-emerald-100 border-[#539458] text-[#225428]';
+        }
+
+        return `
+          <button onclick="selectLevel(${lvl.id})"
+            class="px-3 py-2.5 rounded-2xl border-2 text-left transition flex flex-col justify-between ${btnClass}">
+            <div class="flex items-center justify-between w-full gap-1">
+              <span class="text-xs sm:text-[13px] font-extrabold truncate">${lvl.shortTitle}</span>
+              <span class="text-xs font-extrabold">${isDone ? '✅' : `${completedCount}/${totalCount}`}</span>
+            </div>
+            <div class="w-full h-1.5 rounded-full mt-1.5 ${isActive ? 'bg-white/25' : 'bg-slate-200/80'} overflow-hidden">
+              <div class="h-full ${isActive ? 'bg-amber-300' : 'bg-[#387D3F]'} transition-all" style="width: ${Math.round((completedCount / totalCount) * 100)}%"></div>
+            </div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectLevel(levelId) {
+      appState.activeLevel = levelId;
+      saveState();
+      hideHintBanner();
+      renderCurrentLevel();
+      renderLevelsNav();
+    }
+
+    /*************************************************************************
+     * RENDERITZAT DEL BLOC "OBSERVA:" (Fidel a la imatge 2 i interactiu)
+     *************************************************************************/
+    function renderObserveSection() {
+      const seq = [1, 3, 4, 7, 11, 18];
+      const idx = activeObserveIndex; // >= 2
+      const a = seq[idx - 2];
+      const b = seq[idx - 1];
+      const c = seq[idx];
+
+      const tilesHtml = seq.map((val, i) => {
+        const isInteractive = i >= 2;
+        const isTarget = i === idx;
+        const isParent = i === idx - 1 || i === idx - 2;
+
+        let extraClass = '';
+        if (isTarget) extraClass = 'tile-highlight-target ring-2 ring-emerald-600';
+        else if (isParent) extraClass = 'tile-highlight-parent';
+
+        return `
+          <button type="button"
+            onclick="setObserveIndex(${i >= 2 ? i : 2})"
+            onmouseenter="setObserveIndex(${i >= 2 ? i : 2})"
+            title="${isInteractive ? `Clica per veure com s'obté el ${val}` : 'Nombre inicial de la seqüència'}"
+            class="pcmat-tile pcmat-tile-green w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center text-xl sm:text-2xl select-none cursor-pointer relative ${extraClass}">
+            ${val}
+            ${isParent ? `<span class="absolute -top-2.5 px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-extrabold rounded-full shadow">sumand</span>` : ''}
+            ${isTarget ? `<span class="absolute -top-2.5 px-1.5 py-0.2 bg-emerald-700 text-white text-[10px] font-extrabold rounded-full shadow">suma</span>` : ''}
+          </button>
+        `;
+      }).join('');
+
+      return `
+        <section class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 sm:p-7">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div class="flex items-center gap-2.5">
+              ${getPcmatFlowerSvg('w-7 h-7 sm:w-8 sm:h-8')}
+              <h3 class="text-xl sm:text-2xl font-extrabold font-display text-slate-900">Observa:</h3>
+            </div>
+            <span class="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full self-start sm:self-auto">
+              👆 Toca o passa el ratolí per les caselles per veure la suma
+            </span>
+          </div>
+
+          <!-- Fila de caselles de l'exemple PCMAT -->
+          <div class="flex flex-wrap items-center gap-2.5 sm:gap-3.5 pl-1 sm:pl-9">
+            ${tilesHtml}
+          </div>
+
+          <!-- Explicació visual interactiva de la suma de les dues caselles anteriors -->
+          <div class="mt-5 sm:ml-9 p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/90 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 text-sm sm:text-base font-extrabold text-slate-800">
+              <span class="px-2.5 py-1 rounded-lg bg-amber-200 border border-amber-400 text-amber-950">${a}</span>
+              <span class="text-emerald-700 text-lg">+</span>
+              <span class="px-2.5 py-1 rounded-lg bg-amber-200 border border-amber-400 text-amber-950">${b}</span>
+              <span class="text-emerald-700 text-lg">=</span>
+              <span class="px-3 py-1 rounded-lg bg-emerald-200 border border-emerald-500 text-emerald-950">${c}</span>
+              <span class="text-xs sm:text-sm font-semibold text-slate-600 ml-1">
+                (Cada terme és la suma dels dos anteriors)
+              </span>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+              ${[2, 3, 4, 5].map(stepIdx => `
+                <button type="button" onclick="setObserveIndex(${stepIdx})"
+                  class="px-2.5 py-1 rounded-lg text-xs font-extrabold transition ${activeObserveIndex === stepIdx ? 'bg-[#2E6E36] text-white' : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'}">
+                  Pas ${stepIdx - 1}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function setObserveIndex(idx) {
+      if (activeObserveIndex === idx) return;
+      activeObserveIndex = idx;
+      const container = document.getElementById('observe-wrapper');
+      if (container) {
+        container.innerHTML = renderObserveSection();
+      }
+    }
+
+    /*************************************************************************
+     * RENDERITZAT D'EXERCICIS DE SEQÜÈNCIES ADDITIVES (Nivells 1, 2, 3, 5)
+     *************************************************************************/
+    function renderSequenceRow(ex, showCompletaHeader = false) {
+      const rec = getExerciseRecord(ex.id);
+      const tileClass = getTileThemeClass(ex.theme);
+
+      const cellsHtml = ex.values.map((expectedVal, idx) => {
+        const isGiven = ex.givenIndices.includes(idx);
+        const isSolved = isGiven || rec.solvedIndices.includes(idx);
+        const savedVal = rec.answers[idx] !== undefined ? rec.answers[idx] : '';
+
+        if (isGiven) {
+          return `
+            <div data-ex="${ex.id}" data-idx="${idx}"
+              class="pcmat-tile ${tileClass} w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center text-lg sm:text-2xl select-none shadow-sm">
+              ${formatDisplayNumber(expectedVal)}
+            </div>
+          `;
+        }
+
+        return `
+          <input type="text" inputmode="decimal" autocomplete="off"
+            id="input-${ex.id}-${idx}"
+            data-ex="${ex.id}"
+            data-idx="${idx}"
+            value="${isSolved ? formatDisplayNumber(expectedVal) : savedVal}"
+            placeholder="_"
+            ${isSolved ? 'readonly' : ''}
+            aria-label="${ex.label}, posició ${idx + 1}"
+            onfocus="handleInputFocus('${ex.id}', ${idx})"
+            oninput="handleSequenceInput(this, '${ex.id}', ${idx})"
+            onkeydown="handleSequenceKeydown(event, '${ex.id}', ${idx})"
+            onblur="validateSequenceCell('${ex.id}', ${idx}, false)"
+            class="pcmat-tile ${tileClass} tile-input ${isSolved ? 'tile-solved' : ''} w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 text-center text-lg sm:text-2xl shadow-sm"
+          />
+        `;
+      }).join('');
+
+      return `
+        <div class="py-3 ${showCompletaHeader ? '' : 'border-t border-slate-100 first:border-t-0'}">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5 sm:pl-9">
+            <span class="text-xs sm:text-sm font-bold text-slate-600">${ex.label}</span>
+            <span class="text-xs font-extrabold ${rec.completed ? 'text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200' : 'text-slate-400'}">
+              ${rec.completed ? '✓ Completada' : `${rec.solvedIndices.length} / ${ex.values.length - ex.givenIndices.length} caselles`}
+            </span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 sm:pl-9">
+            ${cellsHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    function handleInputFocus(exId, idx) {
+      activeInputMeta = { exId, idx };
+    }
+
+    function handleSequenceInput(inputEl, exId, idx) {
+      const ex = findExerciseById(exId);
+      if (!ex) return;
+      const rec = getExerciseRecord(exId);
+      if (rec.solvedIndices.includes(idx)) return;
+
+      // Neteja classe d'error mentre l'alumne escriu
+      inputEl.classList.remove('tile-error');
+      rec.answers[idx] = inputEl.value;
+      saveState();
+
+      const expected = ex.values[idx];
+      const parsed = parseUserNumber(inputEl.value);
+
+      // Validació instantània quan el nombre coincideix exactament!
+      if (!isNaN(parsed) && Math.abs(parsed - expected) < 0.0001) {
+        validateSequenceCell(exId, idx, true);
+      }
+    }
+
+    function handleSequenceKeydown(event, exId, idx) {
+      const ex = findExerciseById(exId);
+      if (!ex) return;
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        validateSequenceCell(exId, idx, true);
+      } else if (event.key === 'ArrowRight') {
+        focusNextEditableCell(exId, idx, 1);
+      } else if (event.key === 'ArrowLeft') {
+        focusNextEditableCell(exId, idx, -1);
+      }
+    }
+
+    function focusNextEditableCell(exId, currentIdx, direction = 1) {
+      const ex = findExerciseById(exId);
+      if (!ex) return;
+      const rec = getExerciseRecord(exId);
+
+      let nextIdx = currentIdx + direction;
+      while (nextIdx >= 0 && nextIdx < ex.values.length) {
+        if (!ex.givenIndices.includes(nextIdx) && !rec.solvedIndices.includes(nextIdx)) {
+          const nextInput = document.getElementById(`input-${exId}-${nextIdx}`);
+          if (nextInput) {
+            nextInput.focus();
+            nextInput.select();
+            return;
+          }
+        }
+        nextIdx += direction;
+      }
+
+      // Si no queden caselles en aquesta fila, busca la següent fila incompleta del nivell
+      if (direction > 0) {
+        const currentLevel = LEVELS_DATA.find(l => l.id === appState.activeLevel);
+        if (!currentLevel) return;
+        for (const otherEx of currentLevel.exercises) {
+          if (otherEx.id === exId || !otherEx.values) continue;
+          const otherRec = getExerciseRecord(otherEx.id);
+          for (let i = 0; i < otherEx.values.length; i++) {
+            if (!otherEx.givenIndices.includes(i) && !otherRec.solvedIndices.includes(i)) {
+              const el = document.getElementById(`input-${otherEx.id}-${i}`);
+              if (el) {
+                el.focus();
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function validateSequenceCell(exId, idx, advanceOnSuccess = false) {
+      const ex = findExerciseById(exId);
+      if (!ex) return;
+      const rec = getExerciseRecord(exId);
+      if (rec.solvedIndices.includes(idx)) return;
+
+      const inputEl = document.getElementById(`input-${exId}-${idx}`);
+      if (!inputEl) return;
+
+      const rawVal = inputEl.value.trim();
+      if (rawVal === '') return;
+
+      const expected = ex.values[idx];
+      const parsed = parseUserNumber(rawVal);
+
+      if (!isNaN(parsed) && Math.abs(parsed - expected) < 0.0001) {
+        // Encert!
+        rec.solvedIndices.push(idx);
+        rec.answers[idx] = expected;
+        inputEl.value = formatDisplayNumber(expected);
+        inputEl.readOnly = true;
+        inputEl.classList.remove('tile-error');
+        inputEl.classList.add('tile-solved');
+
+        appState.streak += 1;
+        if (appState.streak > appState.bestStreak) {
+          appState.bestStreak = appState.streak;
+        }
+
+        const streakBonus = Math.min(15, Math.floor(appState.streak / 3) * 5);
+        const gainedXp = 10 + streakBonus;
+        addXp(gainedXp, exId);
+        SoundFX.success();
+
+        // Comprovar si s'ha completat tot l'exercici
+        const totalEditable = ex.values.length - ex.givenIndices.length;
+        if (rec.solvedIndices.length >= totalEditable && !rec.completed) {
+          rec.completed = true;
+          addXp(25, exId);
+          SoundFX.levelUp();
+          showToast('Seqüència Completada!', `+25 XP extra per completar "${ex.label}"`, '🎉', 'green');
+          evaluateLevelCompletionAndMedals(appState.activeLevel);
+        }
+
+        saveState();
+        updateHud();
+
+        // Si és l'espiral del Nivell 4, actualitzem el dibuix SVG!
+        if (ex.type === 'spiral') {
+          renderCurrentLevel();
+        } else {
+          // Actualitzar comptador de la fila sense perdre el focus
+          renderLevelsNav();
+          if (advanceOnSuccess) {
+            focusNextEditableCell(exId, idx, 1);
+          }
+        }
+      } else {
+        // Error
+        rec.errors += 1;
+        appState.streak = 0;
+        inputEl.classList.remove('tile-error');
+        void inputEl.offsetWidth; // Reinicia l'animació CSS
+        inputEl.classList.add('tile-error');
+        SoundFX.error();
+        updateHud();
+        saveState();
+      }
+    }
+
+    /*************************************************************************
+     * RENDERITZAT DEL NIVELL 4: DETECTOR D'INTRUSOS I ESPIRAL DE FIBONACCI
+     *************************************************************************/
+    function renderIntruderCard(ex) {
+      const rec = getExerciseRecord(ex.id);
+      const tileClass = getTileThemeClass(ex.theme);
+
+      const tilesHtml = ex.shownValues.map((val, idx) => {
+        const isIntruder = idx === ex.intruderIndex;
+        const isCompleted = rec.completed;
+
+        if (isCompleted && isIntruder) {
+          return `
+            <div class="pcmat-tile tile-solved w-11 h-11 sm:w-14 sm:h-14 flex flex-col items-center justify-center text-lg sm:text-2xl relative shadow-sm">
+              <span>${ex.correctValues[idx]}</span>
+              <span class="text-[9px] font-bold line-through opacity-60 leading-none">${val}</span>
+            </div>
+          `;
+        }
+
+        if (rec.intruderFound && isIntruder) {
+          return `
+            <input type="text" inputmode="numeric" id="intruder-fix-${ex.id}"
+              placeholder="?"
+              oninput="handleIntruderFixInput(this, '${ex.id}')"
+              onkeydown="if(event.key==='Enter') checkIntruderFix('${ex.id}')"
+              class="pcmat-tile bg-amber-100 border-2 border-amber-500 text-amber-950 tile-input w-11 h-11 sm:w-14 sm:h-14 text-center text-lg sm:text-2xl shadow-md"
+            />
+          `;
+        }
+
+        return `
+          <button type="button"
+            onclick="handleIntruderTileClick('${ex.id}', ${idx})"
+            class="pcmat-tile ${tileClass} hover:-translate-y-1 hover:shadow-md w-11 h-11 sm:w-14 sm:h-14 flex items-center justify-center text-lg sm:text-2xl cursor-pointer">
+            ${val}
+          </button>
+        `;
+      }).join('');
+
+      let instructionText = '1r pas: Clica sobre el nombre que trenca la regla de Fibonacci.';
+      if (rec.intruderFound && !rec.completed) {
+        instructionText = '2n pas: Molt bé! Ara escriu el nombre correcte dins la casella groga.';
+      } else if (rec.completed) {
+        instructionText = 'Excel·lent! Has detectat i corregit l’intrús.';
+      }
+
+      return `
+        <div class="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <span class="text-sm font-extrabold text-slate-800">${ex.label}</span>
+            <span class="text-xs font-bold ${rec.completed ? 'text-emerald-700' : 'text-amber-700'}">${instructionText}</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 mt-2">
+            ${tilesHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    function handleIntruderTileClick(exId, clickedIdx) {
+      const ex = findExerciseById(exId);
+      const rec = getExerciseRecord(exId);
+      if (!ex || rec.completed || rec.intruderFound) return;
+
+      if (clickedIdx === ex.intruderIndex) {
+        rec.intruderFound = true;
+        SoundFX.success();
+        addXp(15, exId);
+        showToast('Intrús localitzat!', 'Ara escriu el valor correcte per reparar la seqüència.', '🕵️', 'green');
+        renderCurrentLevel();
+        setTimeout(() => {
+          const inp = document.getElementById(`intruder-fix-${exId}`);
+          if (inp) inp.focus();
+        }, 50);
+      } else {
+        rec.errors += 1;
+        appState.streak = 0;
+        SoundFX.error();
+        updateHud();
+        saveState();
+        showToast('Aquest nombre és correcte!', 'Comprova la suma dels dos anteriors i busca quin falla.', '🤔', 'red');
+      }
+    }
+
+    function handleIntruderFixInput(inputEl, exId) {
+      const ex = findExerciseById(exId);
+      if (!ex) return;
+      const val = parseUserNumber(inputEl.value);
+      if (val === ex.correctValues[ex.intruderIndex]) {
+        checkIntruderFix(exId);
+      }
+    }
+
+    function checkIntruderFix(exId) {
+      const ex = findExerciseById(exId);
+      const rec = getExerciseRecord(exId);
+      const inp = document.getElementById(`intruder-fix-${exId}`);
+      if (!ex || !inp || rec.completed) return;
+
+      const val = parseUserNumber(inp.value);
+      if (val === ex.correctValues[ex.intruderIndex]) {
+        rec.completed = true;
+        rec.answers[ex.intruderIndex] = val;
+        appState.streak += 1;
+        if (appState.streak > appState.bestStreak) appState.bestStreak = appState.streak;
+        addXp(25, exId);
+        SoundFX.levelUp();
+        evaluateLevelCompletionAndMedals(4);
+        renderCurrentLevel();
+      } else {
+        rec.errors += 1;
+        appState.streak = 0;
+        inp.classList.add('tile-error');
+        SoundFX.error();
+        updateHud();
+        saveState();
+      }
+    }
+
+    function renderGoldenSpiralSection(ex) {
+      const rec = getExerciseRecord(ex.id);
+      const solvedSet = new Set([...ex.givenIndices, ...rec.solvedIndices]);
+
+      // Definició geomètrica exacta dels quadrats [1, 1, 2, 3, 5, 8, 13] dins una graella de 21x13
+      const squares = [
+        { idx: 0, size: 1, x: 15, y: 8, color: '#DCEAD9', stroke: '#539458', arc: 'M 16 9 A 1 1 0 0 0 15 8' },
+        { idx: 1, size: 1, x: 15, y: 9, color: '#F3F0EA', stroke: '#8C8881', arc: 'M 16 10 A 1 1 0 0 0 16 9' },
+        { idx: 2, size: 2, x: 13, y: 8, color: '#E0F2FE', stroke: '#0284C7', arc: 'M 15 8 A 2 2 0 0 0 13 10' },
+        { idx: 3, size: 3, x: 13, y: 10, color: '#FEF3C7', stroke: '#D97706', arc: 'M 13 10 A 3 3 0 0 0 16 13' },
+        { idx: 4, size: 5, x: 16, y: 8, color: '#FCE7F3', stroke: '#DB2777', arc: 'M 16 13 A 5 5 0 0 0 21 8' },
+        { idx: 5, size: 8, x: 13, y: 0, color: '#EDE9FE', stroke: '#7C3AED', arc: 'M 21 8 A 8 8 0 0 0 13 0' },
+        { idx: 6, size: 13, x: 0, y: 0, color: '#DCFCE7', stroke: '#2E6E36', arc: 'M 13 0 A 13 13 0 0 0 0 13' }
+      ];
+
+      const scale = 22;
+      const svgSquares = squares.map(sq => {
+        const isSolved = solvedSet.has(sq.idx);
+        const rx = sq.x * scale + 8;
+        const ry = sq.y * scale + 8;
+        const rw = sq.size * scale;
+        const fontSize = sq.size === 1 ? 10 : sq.size === 2 ? 14 : sq.size === 3 ? 18 : 26;
+
+        return `
+          <g>
+            <rect x="${rx}" y="${ry}" width="${rw}" height="${rw}"
+              fill="${isSolved ? sq.color : '#F8FAFC'}"
+              stroke="${isSolved ? sq.stroke : '#CBD5E1'}"
+              stroke-width="1.8"
+              stroke-dasharray="${isSolved ? 'none' : '4 3'}" />
+            <text x="${rx + rw / 2}" y="${ry + rw / 2}"
+              text-anchor="middle" dominant-baseline="central"
+              font-family="Nunito, sans-serif" font-weight="800"
+              font-size="${fontSize}"
+              fill="${isSolved ? '#0F172A' : '#94A3B8'}">
+              ${isSolved ? sq.size : '?'}
+            </text>
+          </g>
+        `;
+      }).join('');
+
+      // Dibuixem els arcs daurats per als quadrats resolts
+      const svgArcs = squares
+        .filter(sq => solvedSet.has(sq.idx))
+        .map(sq => `
+          <g transform="translate(8, 8) scale(${scale})">
+            <path d="${sq.arc}" fill="none" stroke="#D97706" stroke-width="${2.8 / scale}" stroke-linecap="round" class="spiral-arc-path" />
+          </g>
+        `).join('');
+
+      return `
+        <section class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 sm:p-7">
+          <div class="flex items-center gap-2.5 mb-2">
+            ${getPcmatFlowerSvg('w-7 h-7')}
+            <h3 class="text-xl font-extrabold font-display text-slate-900">Part B · Construeix l’Espiral Daurada</h3>
+          </div>
+          <p class="text-sm text-slate-600 mb-4 sm:pl-9">
+            Completa les mides dels costats dels quadrats de Fibonacci (<strong>1, 1, 2, 3, 5, 8, 13</strong>) i observa com es va traçant l’espiral àuria!
+          </p>
+
+          <!-- Caselles de seqüència -->
+          <div class="mb-5">
+            ${renderSequenceRow(ex, false)}
+          </div>
+
+          <!-- Lienzo SVG de l'Espiral -->
+          <div class="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4 flex flex-col items-center justify-center">
+            <svg viewBox="0 0 478 302" class="w-full max-w-xl h-auto drop-shadow-sm" aria-label="Diagrama geomètric de l'Espiral de Fibonacci">
+              ${svgSquares}
+              ${svgArcs}
+            </svg>
+            <p class="text-xs font-bold text-slate-500 mt-2 text-center">
+              Rectangle Àuri de 21 × 13 unitats · Els arcs connecten els vèrtexs oposats de cada quadrat de Fibonacci
+            </p>
+          </div>
+        </section>
+      `;
+    }
+
+    /*************************************************************************
+     * RENDERITZAT DEL NIVELL 5: EL NOMBRE D'OR (φ)
+     *************************************************************************/
+    function renderGoldenRatioChallenge(ex) {
+      const rec = getExerciseRecord(ex.id);
+      const ratios = [
+        { num: 8, den: 5, res: '1,600' },
+        { num: 13, den: 8, res: '1,625' },
+        { num: 21, den: 13, res: '1,615' },
+        { num: 34, den: 21, res: '1,619' },
+        { num: 55, den: 34, res: '?' }
+      ];
+
+      return `
+        <section class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 sm:p-7">
+          <div class="flex items-center gap-2.5 mb-2">
+            ${getPcmatFlowerSvg('w-7 h-7')}
+            <h3 class="text-xl font-extrabold font-display text-slate-900">${ex.label}</h3>
+          </div>
+          <p class="text-sm text-slate-600 mb-4 sm:pl-9">
+            Quan dividim un nombre de Fibonacci pel seu anterior, el resultat s’apropa cada vegada més a una constant màgica present als gira-sols, les pinyes i les galàxies: el <strong>Nombre d’Or (φ)</strong>.
+          </p>
+
+          <!-- Taula de quocients -->
+          <div class="sm:pl-9 grid grid-cols-2 sm:grid-cols-5 gap-2.5 mb-5">
+            ${ratios.map(r => `
+              <div class="p-3 rounded-2xl ${r.res === '?' ? 'bg-amber-50 border-2 border-amber-400' : 'bg-slate-50 border border-slate-200'} text-center">
+                <div class="text-xs font-extrabold text-slate-500">${r.num} ÷ ${r.den}</div>
+                <div class="text-lg font-black font-display ${r.res === '?' ? 'text-amber-700' : 'text-slate-800'} mt-0.5">${r.res}</div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Pregunta interactiva final -->
+          <div class="sm:pl-9 p-4 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <label for="phi-input" class="block text-sm font-extrabold text-slate-900">
+                Quin és el valor de <span class="text-amber-800">55 ÷ 34</span> arrodonit a 3 decimals?
+              </label>
+              <p class="text-xs text-slate-600 mt-0.5">Pista: Està entre 1,615 i 1,619 (escriu 1,618)</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input type="text" inputmode="decimal" id="phi-input"
+                value="${rec.completed ? '1,618' : (rec.answers.phi || '')}"
+                ${rec.completed ? 'readonly' : ''}
+                placeholder="1,___"
+                onkeydown="if(event.key==='Enter') checkPhiChallenge()"
+                class="pcmat-tile pcmat-tile-amber tile-input ${rec.completed ? 'tile-solved' : ''} w-28 h-12 text-center text-xl font-extrabold"
+              />
+              <button type="button" onclick="checkPhiChallenge()"
+                ${rec.completed ? 'disabled' : ''}
+                class="px-4 h-12 rounded-xl bg-[#2E6E36] hover:bg-[#225428] disabled:bg-emerald-600 text-white font-extrabold text-sm transition shadow">
+                ${rec.completed ? '✓ Resolt!' : 'Comprova φ'}
+              </button>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function checkPhiChallenge() {
+      const ex = findExerciseById('n5_phi');
+      const rec = getExerciseRecord('n5_phi');
+      const inp = document.getElementById('phi-input');
+      if (!ex || !inp || rec.completed) return;
+
+      const val = parseUserNumber(inp.value);
+      rec.answers.phi = inp.value;
+
+      if (!isNaN(val) && Math.abs(val - 1.618) < 0.0015) {
+        rec.completed = true;
+        rec.phiSolved = true;
+        appState.streak += 1;
+        if (appState.streak > appState.bestStreak) appState.bestStreak = appState.streak;
+        addXp(40, 'n5_phi');
+        SoundFX.levelUp();
+        evaluateLevelCompletionAndMedals(5);
+        showToast('Has descobert el Nombre d’Or!', 'φ ≈ 1,6180339... Enhorabona, Mestre/a PCMAT!', '✨', 'gold');
+        renderCurrentLevel();
+      } else {
+        rec.errors += 1;
+        appState.streak = 0;
+        inp.classList.remove('tile-error');
+        void inp.offsetWidth;
+        inp.classList.add('tile-error');
+        SoundFX.error();
+        updateHud();
+        saveState();
+      }
+    }
+
+    /*************************************************************************
+     * RENDERITZADOR PRINCIPAL DEL NIVELL ACTIU
+     *************************************************************************/
+    function findExerciseById(exId) {
+      for (const lvl of LEVELS_DATA) {
+        const found = lvl.exercises.find(e => e.id === exId);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function renderCurrentLevel() {
+      const level = LEVELS_DATA.find(l => l.id === appState.activeLevel) || LEVELS_DATA[0];
+      const completedCount = level.exercises.filter(ex => getExerciseRecord(ex.id).completed).length;
+      const isLevelDone = completedCount === level.exercises.length;
+
+      document.getElementById('level-badge').textContent = `Nivell ${level.id}`;
+      document.getElementById('level-status-pill').textContent = isLevelDone
+        ? '✅ Nivell completat!'
+        : `Progrés: ${completedCount} de ${level.exercises.length} reptes`;
+      document.getElementById('level-status-pill').className = isLevelDone
+        ? 'text-xs font-extrabold text-emerald-700'
+        : 'text-xs font-bold text-slate-500';
+
+      document.getElementById('level-title').textContent = level.title;
+      document.getElementById('level-subtitle').textContent = level.subtitle;
+      document.getElementById('bottom-level-indicator').textContent = `Nivell ${level.id} de ${LEVELS_DATA.length}`;
+
+      document.getElementById('btn-prev-level').disabled = level.id === 1;
+      document.getElementById('btn-next-level').disabled = level.id === LEVELS_DATA.length;
+
+      const container = document.getElementById('activity-container');
+      let html = '';
+
+      if (level.id === 1) {
+        // Nivell 1: Inclou exactament el bloc "Observa:" + el bloc "Completa" amb les dues files de la imatge
+        html += `<div id="observe-wrapper">${renderObserveSection()}</div>`;
+        html += `
+          <section class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 sm:p-7">
+            <div class="flex items-center gap-2.5 mb-3">
+              ${getPcmatFlowerSvg('w-7 h-7 sm:w-8 sm:h-8')}
+              <h3 class="text-xl sm:text-2xl font-extrabold font-display text-slate-900">Completa</h3>
+            </div>
+            <div class="divide-y divide-slate-100">
+              ${level.exercises.map(ex => renderSequenceRow(ex, true)).join('')}
+            </div>
+          </section>
+        `;
+      } else if (level.id === 4) {
+        // Nivell 4: Part A (Intrusos) + Part B (Espiral)
+        const intruders = level.exercises.filter(e => e.type === 'intruder');
+        const spiral = level.exercises.find(e => e.type === 'spiral');
+        html += `
+          <section class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 sm:p-7">
+            <div class="flex items-center gap-2.5 mb-4">
+              ${getPcmatFlowerSvg('w-7 h-7')}
+              <h3 class="text-xl font-extrabold font-display text-slate-900">Part A · Troba i corregeix l’Intrús</h3>
+            </div>
+            <div class="space-y-3.5 sm:pl-9">
+              ${intruders.map(ex => renderIntruderCard(ex)).join('')}
+            </div>
+          </section>
+        `;
+        if (spiral) {
+          html += renderGoldenSpiralSection(spiral);
+        }
+      } else {
+        // Nivells 2, 3 i 5
+        const seqExercises = level.exercises.filter(e => e.type === 'sequence');
+        const phiExercise = level.exercises.find(e => e.type === 'golden_ratio');
+
+        html += `
+          <section class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 sm:p-7">
+            <div class="flex items-center gap-2.5 mb-3">
+              ${getPcmatFlowerSvg('w-7 h-7 sm:w-8 sm:h-8')}
+              <h3 class="text-xl sm:text-2xl font-extrabold font-display text-slate-900">Completa les seqüències</h3>
+            </div>
+            <div class="divide-y divide-slate-100">
+              ${seqExercises.map(ex => renderSequenceRow(ex, true)).join('')}
+            </div>
+          </section>
+        `;
+
+        if (phiExercise) {
+          html += renderGoldenRatioChallenge(phiExercise);
+        }
+      }
+
+      container.innerHTML = html;
+    }
+
+    /*************************************************************************
+     * SISTEMA DE PISTES VISUALS I COMPROVACIÓ GLOBAL
+     *************************************************************************/
+    function hideHintBanner() {
+      document.getElementById('hint-banner').classList.add('hidden');
+      document.querySelectorAll('.tile-highlight-parent').forEach(el => el.classList.remove('tile-highlight-parent'));
+    }
+
+    function requestVisualHint() {
+      const level = LEVELS_DATA.find(l => l.id === appState.activeLevel);
+      if (!level) return;
+
+      // Neteja ressaltats previs
+      document.querySelectorAll('.tile-highlight-parent').forEach(el => el.classList.remove('tile-highlight-parent'));
+
+      // Busca la casella activa o la primera casella buida del nivell actual
+      let targetEx = null;
+      let targetIdx = null;
+
+      if (activeInputMeta) {
+        const candidateEx = findExerciseById(activeInputMeta.exId);
+        if (candidateEx && level.exercises.some(e => e.id === candidateEx.id)) {
+          const rec = getExerciseRecord(candidateEx.id);
+          if (!rec.solvedIndices.includes(activeInputMeta.idx)) {
+            targetEx = candidateEx;
+            targetIdx = activeInputMeta.idx;
+          }
+        }
+      }
+
+      if (!targetEx) {
+        for (const ex of level.exercises) {
+          const rec = getExerciseRecord(ex.id);
+          if (ex.type === 'sequence' || ex.type === 'spiral') {
+            for (let i = 0; i < ex.values.length; i++) {
+              if (!ex.givenIndices.includes(i) && !rec.solvedIndices.includes(i)) {
+                targetEx = ex;
+                targetIdx = i;
+                break;
+              }
+            }
+          } else if (ex.type === 'intruder' && !rec.completed) {
+            targetEx = ex;
+            targetIdx = ex.intruderIndex;
+          } else if (ex.type === 'golden_ratio' && !rec.completed) {
+            targetEx = ex;
+          }
+          if (targetEx) break;
+        }
+      }
+
+      if (!targetEx) {
+        showToast('Nivell ja completat!', 'Ja has resolt tots els reptes d’aquest nivell.', '🏆', 'green');
+        return;
+      }
+
+      appState.hintsUsed += 1;
+      addXp(-5);
+      SoundFX.hint();
+
+      const hintBanner = document.getElementById('hint-banner');
+      const hintText = document.getElementById('hint-text');
+      hintBanner.classList.remove('hidden');
+
+      if (targetEx.type === 'sequence' || targetEx.type === 'spiral') {
+        const vals = targetEx.values;
+        const rec = getExerciseRecord(targetEx.id);
+        const solvedSet = new Set([...targetEx.givenIndices, ...rec.solvedIndices]);
+
+        // Cas 1: Els dos anteriors estan disponibles (suma directa a + b = ?)
+        if (targetIdx >= 2 && solvedSet.has(targetIdx - 1) && solvedSet.has(targetIdx - 2)) {
+          const a = vals[targetIdx - 2];
+          const b = vals[targetIdx - 1];
+          hintText.innerHTML = `Suma les dues caselles anteriors ressaltades en groc: <span class="px-2 py-0.5 rounded bg-amber-200">${formatDisplayNumber(a)}</span> + <span class="px-2 py-0.5 rounded bg-amber-200">${formatDisplayNumber(b)}</span> = <strong>?</strong>`;
+          highlightTile(targetEx.id, targetIdx - 2);
+          highlightTile(targetEx.id, targetIdx - 1);
+        }
+        // Cas 2: Pensament invers (tenim el següent i el posterior: c - b = ?)
+        else if (targetIdx + 2 < vals.length && solvedSet.has(targetIdx + 1) && solvedSet.has(targetIdx + 2)) {
+          const b = vals[targetIdx + 1];
+          const c = vals[targetIdx + 2];
+          hintText.innerHTML = `Pensament invers! Com que <strong>? + ${formatDisplayNumber(b)} = ${formatDisplayNumber(c)}</strong>, fes la resta: <span class="px-2 py-0.5 rounded bg-amber-200">${formatDisplayNumber(c)}</span> − <span class="px-2 py-0.5 rounded bg-amber-200">${formatDisplayNumber(b)}</span> = <strong>?</strong>`;
+          highlightTile(targetEx.id, targetIdx + 1);
+          highlightTile(targetEx.id, targetIdx + 2);
+        }
+        // Cas 3: Pensament invers al mig (tenim l'anterior i el següent: c - a = ?)
+        else if (targetIdx >= 1 && targetIdx + 1 < vals.length && solvedSet.has(targetIdx - 1) && solvedSet.has(targetIdx + 1)) {
+          const a = vals[targetIdx - 1];
+          const c = vals[targetIdx + 1];
+          hintText.innerHTML = `Pensament invers! Com que <strong>${formatDisplayNumber(a)} + ? = ${formatDisplayNumber(c)}</strong>, calcula: <span class="px-2 py-0.5 rounded bg-amber-200">${formatDisplayNumber(c)}</span> − <span class="px-2 py-0.5 rounded bg-amber-200">${formatDisplayNumber(a)}</span> = <strong>?</strong>`;
+          highlightTile(targetEx.id, targetIdx - 1);
+          highlightTile(targetEx.id, targetIdx + 1);
+        } else {
+          hintText.innerHTML = `Comença resolent les caselles on ja coneguis dos nombres veïns seguits per aplicar la suma o la resta.`;
+        }
+
+        const inp = document.getElementById(`input-${targetEx.id}-${targetIdx}`);
+        if (inp) inp.focus();
+      } else if (targetEx.type === 'intruder') {
+        const idx = targetEx.intruderIndex;
+        const a = targetEx.correctValues[idx - 2];
+        const b = targetEx.correctValues[idx - 1];
+        hintText.innerHTML = `A <strong>${targetEx.label}</strong>, revisa la suma de <strong>${a} + ${b}</strong> a la posició ${idx + 1}.`;
+      } else if (targetEx.type === 'golden_ratio') {
+        hintText.innerHTML = `Divideix <strong>55 ÷ 34</strong>: el resultat és <strong>1,618</strong> (el Nombre d’Or φ).`;
+      }
+    }
+
+    function highlightTile(exId, idx) {
+      const el = document.querySelector(`[data-ex="${exId}"][data-idx="${idx}"]`);
+      if (el) el.classList.add('tile-highlight-parent');
+    }
+
+    function checkAllInCurrentLevel() {
+      const level = LEVELS_DATA.find(l => l.id === appState.activeLevel);
+      if (!level) return;
+      let checkedAny = false;
+
+      level.exercises.forEach(ex => {
+        if (ex.type === 'sequence' || ex.type === 'spiral') {
+          const rec = getExerciseRecord(ex.id);
+          ex.values.forEach((_, idx) => {
+            if (!ex.givenIndices.includes(idx) && !rec.solvedIndices.includes(idx)) {
+              const inp = document.getElementById(`input-${ex.id}-${idx}`);
+              if (inp && inp.value.trim() !== '') {
+                checkedAny = true;
+                validateSequenceCell(ex.id, idx, false);
+              }
+            }
+          });
+        } else if (ex.type === 'golden_ratio') {
+          const inp = document.getElementById('phi-input');
+          if (inp && inp.value.trim() !== '') {
+            checkedAny = true;
+            checkPhiChallenge();
+          }
+        }
+      });
+
+      if (!checkedAny) {
+        showToast('Cap casella pendent per comprovar', 'Escriu els nombres a les caselles buides i es validaran automàticament!', 'ℹ️', 'green');
+      }
+    }
+
+    /*************************************************************************
+     * GENERACIÓ D'INFORME EN PDF PER AL DOCENT (jsPDF)
+     *************************************************************************/
+    function generateTeacherPdf() {
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        showToast('Error carregant llibreria PDF', 'Comprova la connexió a Internet i torna-ho a provar.', '⚠️', 'red');
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      const studentName = `${appState.student.nom} ${appState.student.cognoms}`.trim() || 'Alumne/a';
+      const course = appState.student.curs || 'No especificat';
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('ca-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
+      const rankInfo = getCurrentRank(appState.xp).current;
+
+      // Càlcul d'estadístiques globals
+      let totalTasks = 0;
+      let completedTasks = 0;
+      let totalCorrectCells = 0;
+      let totalEditableCells = 0;
+      let totalErrors = 0;
+
+      LEVELS_DATA.forEach(lvl => {
+        lvl.exercises.forEach(ex => {
+          totalTasks++;
+          const rec = getExerciseRecord(ex.id);
+          if (rec.completed) completedTasks++;
+          totalErrors += rec.errors;
+
+          if (ex.values) {
+            const editable = ex.values.length - ex.givenIndices.length;
+            totalEditableCells += editable;
+            totalCorrectCells += rec.solvedIndices.length;
+          } else {
+            totalEditableCells += 1;
+            if (rec.completed) totalCorrectCells += 1;
+          }
+        });
+      });
+
+      const accuracyPct = (totalCorrectCells + totalErrors) > 0
+        ? Math.round((totalCorrectCells / (totalCorrectCells + totalErrors)) * 100)
+        : 0;
+
+      // 1. CAPÇALERA CORPORATIVA VERDA PCMAT
+      doc.setFillColor(46, 110, 54); // #2E6E36
+      doc.roundedRect(12, 12, 186, 26, 4, 4, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.text('PCMAT', 18, 24);
+
+      doc.setFontSize(11);
+      doc.text('Informe de Seguiment de l’Alumnat · Sèrie de Fibonacci', 18, 31);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.text(`Generat: ${dateStr} · ${timeStr}`, 192, 23, { align: 'right' });
+      doc.text('Pensament Computacional i Matemàtiques', 192, 29, { align: 'right' });
+
+      // 2. DADES DE L'ALUMNE
+      doc.setFillColor(246, 249, 245);
+      doc.setDrawColor(83, 148, 88);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(12, 43, 186, 20, 3, 3, 'FD');
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(9.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Alumne/a:', 17, 50.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(studentName, 36, 50.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Curs / Grup:', 115, 50.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(course, 138, 50.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Rang Assolit:', 17, 57.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(rankInfo.name, 42, 57.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Reptes Superats:', 115, 57.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${completedTasks} de ${totalTasks} activitats`, 146, 57.5);
+
+      // 3. RESUM DE RENDIMENT (4 targetes KPI)
+      const kpis = [
+        { label: 'Punts XP', value: `${appState.xp} XP` },
+        { label: 'Encert Global', value: `${accuracyPct}%` },
+        { label: 'Millor Ratxa', value: `${appState.bestStreak} seguits` },
+        { label: 'Pistes / Errors', value: `${appState.hintsUsed} / ${totalErrors}` }
+      ];
+
+      kpis.forEach((kpi, i) => {
+        const kx = 12 + i * 47.5;
+        doc.setFillColor(220, 234, 217); // #DCEAD9
+        doc.setDrawColor(83, 148, 88);
+        doc.roundedRect(kx, 68, 43.5, 17, 2.5, 2.5, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(34, 84, 40);
+        doc.text(kpi.label.toUpperCase(), kx + 21.75, 73.5, { align: 'center' });
+
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42);
+        doc.text(kpi.value, kx + 21.75, 81, { align: 'center' });
+      });
+
+      // Medalles aconseguides
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Medalles i Assoliments Desbloquejats:', 12, 93);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      const unlockedTitles = appState.medals.length > 0
+        ? appState.medals.map(id => (MEDALS.find(m => m.id === id) || {}).title).filter(Boolean).join('  |  ')
+        : 'Encara no s’ha desbloquejat cap medalla.';
+      const medalLines = doc.splitTextToSize(unlockedTitles, 184);
+      doc.text(medalLines, 12, 98.5);
+
+      // 4. TAULA DETALLADA EXERCICI PER EXERCICI
+      let y = 106 + (medalLines.length - 1) * 4;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(46, 110, 54);
+      doc.text('Detall de l’Activitat per Nivells i Exercicis', 12, y);
+      y += 4;
+
+      // Capçalera de taula
+      doc.setFillColor(46, 110, 54);
+      doc.rect(12, y, 186, 7.5, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Nivell', 14, y + 5);
+      doc.text('Tipus de Repte', 27, y + 5);
+      doc.text('Seqüència / Respostes de l’Alumne', 74, y + 5);
+      doc.text('Errors', 153, y + 5, { align: 'center' });
+      doc.text('XP', 167, y + 5, { align: 'center' });
+      doc.text('Estat', 186, y + 5, { align: 'center' });
+      y += 7.5;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.3);
+
+      let rowIndex = 0;
+      LEVELS_DATA.forEach(lvl => {
+        lvl.exercises.forEach(ex => {
+          const rec = getExerciseRecord(ex.id);
+
+          // Construir cadena llegible de la seqüència i respostes de l'alumne
+          let seqSummary = '';
+          if (ex.type === 'sequence' || ex.type === 'spiral') {
+            seqSummary = ex.values.map((val, i) => {
+              if (ex.givenIndices.includes(i)) return String(val).replace('.', ',');
+              if (rec.solvedIndices.includes(i)) return `[${String(val).replace('.', ',')}]`;
+              if (rec.answers[i]) return `(${rec.answers[i]}?)`;
+              return '_';
+            }).join(' · ');
+          } else if (ex.type === 'intruder') {
+            seqSummary = rec.completed
+              ? `Intrús corregit: ${ex.correctValues.join(' · ')}`
+              : `Seqüència: ${ex.shownValues.join(' · ')} (${rec.intruderFound ? 'Intrús trobat' : 'Pendent'})`;
+          } else if (ex.type === 'golden_ratio') {
+            seqSummary = rec.completed
+              ? '55 ÷ 34 = 1,618 (Nombre d’Or φ)'
+              : `Resposta: ${rec.answers.phi || 'Sense resposta'}`;
+          }
+
+          const cleanLabel = ex.label.replace(/^.*?·\s*/, '');
+          const wrappedSeq = doc.splitTextToSize(seqSummary, 72);
+          const rowHeight = Math.max(7.5, wrappedSeq.length * 3.8 + 3);
+
+          // Salt de pàgina si cal
+          if (y + rowHeight > 258) {
+            doc.addPage();
+            y = 18;
+          }
+
+          if (rowIndex % 2 === 1) {
+            doc.setFillColor(248, 250, 248);
+            doc.rect(12, y, 186, rowHeight, 'F');
+          }
+          doc.setDrawColor(226, 232, 240);
+          doc.rect(12, y, 186, rowHeight, 'S');
+
+          doc.setTextColor(30, 41, 59);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`N${lvl.id}`, 14, y + 4.8);
+
+          doc.setFont('helvetica', 'normal');
+          const shortType = cleanLabel.length > 29 ? cleanLabel.slice(0, 28) + '…' : cleanLabel;
+          doc.text(shortType, 27, y + 4.8);
+          doc.text(wrappedSeq, 74, y + 4.5);
+
+          doc.text(String(rec.errors), 153, y + 4.8, { align: 'center' });
+          doc.text(`+${rec.xpEarned}`, 167, y + 4.8, { align: 'center' });
+
+          const statusLabel = rec.completed
+            ? 'Superat'
+            : (rec.solvedIndices.length > 0 || rec.intruderFound || rec.errors > 0 ? 'En curs' : 'Pendent');
+          if (rec.completed) doc.setTextColor(22, 163, 74);
+          else doc.setTextColor(100, 116, 139);
+          doc.setFont('helvetica', 'bold');
+          doc.text(statusLabel, 186, y + 4.8, { align: 'center' });
+
+          y += rowHeight;
+          rowIndex++;
+        });
+      });
+
+      // 5. ESPAI FINAL PER A OBSERVACIONS I SIGNATURA DEL DOCENT / FAMÍLIA
+      if (y + 34 > 282) {
+        doc.addPage();
+        y = 20;
+      } else {
+        y += 6;
+      }
+
+      doc.setDrawColor(140, 136, 129);
+      doc.setFillColor(252, 252, 251);
+      doc.roundedRect(12, y, 186, 28, 3, 3, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Observacions del docent / comentaris de seguiment:', 16, y + 6);
+
+      doc.setDrawColor(203, 213, 225);
+      doc.line(16, y + 13, 194, y + 13);
+      doc.line(16, y + 20, 125, y + 20);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text('Signatura del docent:', 132, y + 18);
+      doc.line(132, y + 25, 161, y + 25);
+
+      doc.text('Signatura família:', 166, y + 18);
+      doc.line(166, y + 25, 194, y + 25);
+
+      // Descàrrega directa del fitxer
+      const safeName = studentName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_|_$/g, '') || 'Alumne';
+
+      doc.save(`Informe_PCMAT_Fibonacci_${safeName}.pdf`);
+      showToast('Informe PDF descarregat!', `S'ha desat Informe_PCMAT_Fibonacci_${safeName}.pdf`, '📄', 'green');
+    }
+
+    /*************************************************************************
+     * GESTIÓ DELS MODALS (IDENTIFICACIÓ, MEDALLES, REINICI)
+     *************************************************************************/
+    function openStudentModal(allowCancel = false) {
+      const modal = document.getElementById('student-modal');
+      const cancelBtn = document.getElementById('btn-cancel-modal');
+      document.getElementById('input-nom').value = appState.student.nom;
+      document.getElementById('input-cognoms').value = appState.student.cognoms;
+      document.getElementById('input-curs').value = appState.student.curs || '6è de Primària';
+
+      renderAvatarSelector(appState.student.avatar);
+
+      if (allowCancel) cancelBtn.classList.remove('hidden');
+      else cancelBtn.classList.add('hidden');
+
+      modal.classList.remove('hidden');
+    }
+
+    function renderAvatarSelector(selectedId) {
+      const grid = document.getElementById('avatar-selector');
+      grid.innerHTML = AVATARS.map(av => {
+        const active = av.id === selectedId;
+        return `
+          <button type="button" onclick="selectAvatarOption('${av.id}')"
+            class="p-2.5 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition ${active ? 'bg-emerald-50 border-[#2E6E36] scale-105 shadow-sm' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}">
+            <span class="text-2xl">${av.emoji}</span>
+            <span class="text-[10px] font-bold text-slate-700 leading-tight text-center">${av.label}</span>
+          </button>
+        `;
+      }).join('');
+      grid.dataset.selected = selectedId;
+    }
+
+    function selectAvatarOption(id) {
+      renderAvatarSelector(id);
+    }
+
+    function openMedalsModal() {
+      const grid = document.getElementById('medals-grid');
+      grid.innerHTML = MEDALS.map(m => {
+        const unlocked = appState.medals.includes(m.id);
+        return `
+          <div class="p-4 rounded-2xl border-2 flex items-start gap-3.5 ${unlocked ? 'bg-amber-50/70 border-amber-300' : 'bg-slate-50 border-slate-200 opacity-65'}">
+            <div class="w-12 h-12 rounded-2xl ${unlocked ? 'bg-amber-200' : 'bg-slate-200 grayscale'} flex items-center justify-center text-2xl flex-shrink-0">
+              ${m.icon}
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 class="font-extrabold text-sm text-slate-900">${m.title}</h4>
+                ${unlocked ? '<span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Aconseguida</span>' : ''}
+              </div>
+              <p class="text-xs text-slate-600 mt-1 leading-relaxed">${m.desc}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+      document.getElementById('medals-modal').classList.remove('hidden');
+    }
+
+    /*************************************************************************
+     * INICIALITZACIÓ I ESDEVENIMENTS
+     *************************************************************************/
+    window.addEventListener('DOMContentLoaded', () => {
+      // Formulari d'identificació
+      document.getElementById('student-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const nom = document.getElementById('input-nom').value.trim();
+        const cognoms = document.getElementById('input-cognoms').value.trim();
+        const curs = document.getElementById('input-curs').value;
+        const avatar = document.getElementById('avatar-selector').dataset.selected || 'owl';
+
+        if (!nom || !cognoms) return;
+
+        appState.student = { nom, cognoms, curs, avatar, registered: true };
+        saveState();
+        updateHud();
+        document.getElementById('student-modal').classList.add('hidden');
+        showToast(`Endavant, ${nom}!`, 'Explora els patrons i guanya punts d’experiència.', '🌿', 'green');
+      });
+
+      document.getElementById('btn-cancel-modal').addEventListener('click', () => {
+        document.getElementById('student-modal').classList.add('hidden');
+      });
+
+      document.getElementById('btn-edit-student').addEventListener('click', () => {
+        openStudentModal(true);
+      });
+
+      // Medalles
+      document.getElementById('btn-open-medals').addEventListener('click', openMedalsModal);
+      document.getElementById('btn-close-medals').addEventListener('click', () => {
+        document.getElementById('medals-modal').classList.add('hidden');
+      });
+
+      // So
+      document.getElementById('btn-toggle-sound').addEventListener('click', () => {
+        appState.soundEnabled = !appState.soundEnabled;
+        saveState();
+        updateHud();
+      });
+
+      // Reiniciar progrés
+      document.getElementById('btn-open-reset').addEventListener('click', () => {
+        document.getElementById('reset-modal').classList.remove('hidden');
+      });
+      document.getElementById('btn-reset-cancel').addEventListener('click', () => {
+        document.getElementById('reset-modal').classList.add('hidden');
+      });
+      document.getElementById('btn-reset-confirm').addEventListener('click', () => {
+        const keepStudent = { ...appState.student };
+        appState = createDefaultState();
+        appState.student = keepStudent;
+        saveState();
+        document.getElementById('reset-modal').classList.add('hidden');
+        updateHud();
+        renderCurrentLevel();
+        showToast('Progrés reiniciat', 'Totes les caselles i punts han tornat a zero.', '🔄', 'green');
+      });
+
+      // Pistes i comprovació
+      document.getElementById('btn-hint').addEventListener('click', requestVisualHint);
+      document.getElementById('btn-close-hint').addEventListener('click', hideHintBanner);
+      document.getElementById('btn-check-level').addEventListener('click', checkAllInCurrentLevel);
+
+      // Navegació anterior / següent
+      document.getElementById('btn-prev-level').addEventListener('click', () => {
+        if (appState.activeLevel > 1) selectLevel(appState.activeLevel - 1);
+      });
+      document.getElementById('btn-next-level').addEventListener('click', () => {
+        if (appState.activeLevel < LEVELS_DATA.length) selectLevel(appState.activeLevel + 1);
+      });
+
+      // Descàrrega PDF
+      document.getElementById('btn-download-pdf').addEventListener('click', generateTeacherPdf);
+
+      // Arrencada inicial
+      updateHud();
+      renderCurrentLevel();
+
+      if (!appState.student.registered) {
+        openStudentModal(false);
+      }
+    });
+  </script>
+</body>
+</html>
